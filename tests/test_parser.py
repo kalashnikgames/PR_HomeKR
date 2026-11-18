@@ -45,6 +45,19 @@ class ParserTests(unittest.TestCase):
         with self.assertRaisesRegex(TranslationError, "повтор ключа a"):
             translate_source("{ a = 1.0, a = 2.0 }")
 
+    def test_names_and_unicode_decimal_digits(self):
+        """Имя def допустимо, а десятичные цифры приводятся к TOML."""
+        source = "def def := ١٢.٣ { def = ^(def), item2 = 0. }"
+        self.assertEqual(tomllib.loads(to_toml(translate_source(source))),
+                         {"def": 12.3, "item2": 0.0})
+
+    def test_unclosed_comment_and_invalid_name(self):
+        """Незакрытый комментарий и имя с подчеркиванием недопустимы."""
+        for source in ("#[ незакрытый комментарий", "{ bad_name = 1.0 }"):
+            with self.subTest(source=source):
+                with self.assertRaises(TranslationError):
+                    translate_source(source)
+
 
 if __name__ == "__main__":
     unittest.main()

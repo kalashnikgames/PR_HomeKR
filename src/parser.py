@@ -1,6 +1,7 @@
 """Синтаксический разбор конфигурации средствами Lark."""
 
 from copy import deepcopy
+from unicodedata import decimal
 
 from lark import Lark, Tree, UnexpectedInput
 
@@ -9,15 +10,17 @@ GRAMMAR = r"""
     start: definition* dictionary
     dictionary: "{" [item ("," item)* [","]] "}"
     ?item: entry | definition
-    entry: NAME "=" value
-    definition: "def" NAME ":=" value
+    entry: name "=" value
+    definition: "def" name ":=" value
     ?value: NUMBER -> number
           | dictionary
           | reference
-    reference: "^" "(" NAME ")"
+    reference: "^" "(" name ")"
+    name: NAME | DEF
 
+    DEF: "def"
     NAME: /[a-zA-Z][a-zA-Z0-9]*/
-    NUMBER: /[0-9]+\.[0-9]*/
+    NUMBER: /\d+\.\d*/
 
     %import common.WS
     %ignore WS
@@ -45,12 +48,20 @@ def parse_source(source):
 def normalize_number(token):
     """Записать десятичное число в допустимом формате TOML."""
     whole, fraction = str(token).split(".")
+    whole = "".join(str(decimal(digit)) for digit in whole)
+    fraction = "".join(str(decimal(digit)) for digit in fraction)
     return f"{whole.lstrip('0') or '0'}.{fraction or '0'}"
+
+
+def name_token(node):
+    """Получить имя вместе с позицией, включая имя `def`."""
+    return node.children[0]
 
 
 def define_constant(node, scope, local_names):
     """Вычислить объявление и проверить повтор в текущей области."""
-    name, value_node = node.children
+    name_node, value_node = node.children
+    name = name_token(name_node)
     if name.value in local_names:
         location = f"строка {name.line}, столбец {name.column}"
         raise TranslationError(f"повтор константы {name.value}: {location}")
@@ -67,7 +78,8 @@ def evaluate_dictionary(node, inherited_scope):
         if item.data == "definition":
             define_constant(item, scope, local_names)
             continue
-        name, value_node = item.children
+        name_node, value_node = item.children
+        name = name_token(name_node)
         if name.value in result:
             location = f"строка {name.line}, столбец {name.column}"
             raise TranslationError(f"повтор ключа {name.value}: {location}")
@@ -80,7 +92,7 @@ def evaluate_value(node, scope):
     if isinstance(node, Tree) and node.data == "dictionary":
         return evaluate_dictionary(node, scope)
     if node.data == "reference":
-        name = node.children[0]
+        name = name_token(node.children[0])
         if name.value not in scope:
             location = f"строка {name.line}, столбец {name.column}"
             raise TranslationError(
