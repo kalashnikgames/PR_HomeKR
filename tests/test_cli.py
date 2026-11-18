@@ -31,6 +31,19 @@ class CliTests(unittest.TestCase):
             self.assertEqual(tomllib.loads(output.read_text("utf-8")),
                              {"size": 2.5})
 
+    def test_utf8_comments_and_nested_output(self):
+        """UTF-8 комментарии и каталоги пути проходят через CLI."""
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "nested" / "result.toml"
+            command = [sys.executable, "-B", "-m", "src.cli",
+                       "-o", str(output)]
+            source = "#[ температура ]#\n{ temp = 21.5 }"
+            result = subprocess.run(command, input=source, text=True,
+                                    encoding="utf-8", capture_output=True)
+            self.assertEqual(result.returncode, 0, result.stderr)
+            self.assertEqual(tomllib.loads(output.read_text("utf-8")),
+                             {"temp": 21.5})
+
 
 if __name__ == "__main__":
     unittest.main()

@@ -1,2 +1,3 @@
 @echo off
-python -B -m src.cli %*
+chcp 65001 >nul
+python -X utf8 -B -m src.cli %*
