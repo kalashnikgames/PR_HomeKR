@@ -1,14 +1,20 @@
 """Синтаксический разбор конфигурации средствами Lark."""
 
+from copy import deepcopy
+
 from lark import Lark, Tree, UnexpectedInput
 
 
 GRAMMAR = r"""
-    start: dictionary
-    dictionary: "{" [entry ("," entry)* [","]] "}"
+    start: definition* dictionary
+    dictionary: "{" [item ("," item)* [","]] "}"
+    ?item: entry | definition
     entry: NAME "=" value
+    definition: "def" NAME ":=" value
     ?value: NUMBER -> number
           | dictionary
+          | reference
+    reference: "^" "(" NAME ")"
 
     NAME: /[a-zA-Z][a-zA-Z0-9]*/
     NUMBER: /[0-9]+\.[0-9]*/
@@ -39,29 +45,55 @@ def parse_source(source):
 def normalize_number(token):
     """Записать десятичное число в допустимом формате TOML."""
     whole, fraction = str(token).split(".")
-    return f"{int(whole)}.{fraction or '0'}"
+    return f"{whole.lstrip('0') or '0'}.{fraction or '0'}"
 
 
-def evaluate_dictionary(node):
-    """Вычислить словарь из дерева без потери порядка полей."""
+def define_constant(node, scope, local_names):
+    """Вычислить объявление и проверить повтор в текущей области."""
+    name, value_node = node.children
+    if name.value in local_names:
+        location = f"строка {name.line}, столбец {name.column}"
+        raise TranslationError(f"повтор константы {name.value}: {location}")
+    scope[name.value] = evaluate_value(value_node, scope)
+    local_names.add(name.value)
+
+
+def evaluate_dictionary(node, inherited_scope):
+    """Вычислить словарь с локальными константами и порядком полей."""
     result = {}
-    for entry in node.children:
-        name, value_node = entry.children
+    scope = inherited_scope.copy()
+    local_names = set()
+    for item in node.children:
+        if item.data == "definition":
+            define_constant(item, scope, local_names)
+            continue
+        name, value_node = item.children
         if name.value in result:
             location = f"строка {name.line}, столбец {name.column}"
             raise TranslationError(f"повтор ключа {name.value}: {location}")
-        result[name.value] = evaluate_value(value_node)
+        result[name.value] = evaluate_value(value_node, scope)
     return result
 
 
-def evaluate_value(node):
-    """Вычислить число или вложенный словарь."""
+def evaluate_value(node, scope):
+    """Вычислить число, словарь или ссылку на известную константу."""
     if isinstance(node, Tree) and node.data == "dictionary":
-        return evaluate_dictionary(node)
+        return evaluate_dictionary(node, scope)
+    if node.data == "reference":
+        name = node.children[0]
+        if name.value not in scope:
+            location = f"строка {name.line}, столбец {name.column}"
+            raise TranslationError(
+                f"неизвестная константа {name.value}: {location}")
+        return deepcopy(scope[name.value])
     return normalize_number(node.children[0])
 
 
 def translate_source(source):
     """Преобразовать полный входной текст в дерево значений."""
     document = parse_source(source)
-    return evaluate_dictionary(document.children[0])
+    scope = {}
+    local_names = set()
+    for definition in document.children[:-1]:
+        define_constant(definition, scope, local_names)
+    return evaluate_dictionary(document.children[-1], scope)
