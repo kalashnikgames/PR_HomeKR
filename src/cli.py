@@ -32,9 +32,16 @@ def main(argv=None):
                         help="путь к выходному файлу TOML")
     arguments = parser.parse_args(argv)
     try:
+        if sys.stdin.isatty():
+            print("Введите конфигурацию. Для завершения в Windows "
+                  "нажмите Ctrl+Z, затем Enter; в Linux/macOS — Ctrl+D.",
+                  file=sys.stderr)
         source = sys.stdin.buffer.read().decode("utf-8-sig")
         result = to_toml(translate_source(source))
         write_output(arguments.output, result)
+    except KeyboardInterrupt:
+        print("\nВвод прерван.", file=sys.stderr)
+        return 130
     except (TranslationError, OSError, UnicodeError) as error:
         print(f"Ошибка: {error}", file=sys.stderr)
         return 1

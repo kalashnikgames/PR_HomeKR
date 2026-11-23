@@ -26,6 +26,10 @@ python -B -m unittest discover -s tests -v
 Команда с `<` рассчитана на `cmd` и другие оболочки с перенаправлением.
 В PowerShell используйте `Get-Content -Raw -Encoding UTF8 input.txt |
 python -B -m src.cli -o output/result.toml`.
+Если вводите конфигурацию вручную после `run.bat -o result.toml`, в Windows
+завершите ввод клавишами **Ctrl+Z**, затем **Enter**. Ctrl+D используется
+для завершения ввода в Linux/macOS. После успешной записи CLI ничего не
+печатает; результат находится в указанном файле.
 
 ## Поддерживаемый синтаксис
 

@@ -6,6 +6,9 @@ import tempfile
 import tomllib
 import unittest
 from pathlib import Path
+from unittest.mock import patch
+
+from src.cli import main
 
 
 class CliTests(unittest.TestCase):
@@ -43,6 +46,18 @@ class CliTests(unittest.TestCase):
             self.assertEqual(result.returncode, 0, result.stderr)
             self.assertEqual(tomllib.loads(output.read_text("utf-8")),
                              {"temp": 21.5})
+
+    def test_interrupted_console_input(self):
+        """Ctrl+C завершает CLI без traceback и выходного файла."""
+        with tempfile.TemporaryDirectory() as directory:
+            output = Path(directory) / "result.toml"
+            with patch("src.cli.sys.stdin") as standard_input:
+                standard_input.isatty.return_value = True
+                standard_input.buffer.read.side_effect = KeyboardInterrupt
+                with patch("src.cli.sys.stderr") as standard_error:
+                    self.assertEqual(main(["-o", str(output)]), 130)
+            self.assertFalse(output.exists())
+            self.assertTrue(standard_error.write.called)
 
 
 if __name__ == "__main__":
