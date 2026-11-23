@@ -102,9 +102,9 @@ timeout = 2.0
 Запуск каждого примера из `cmd` или Bash:
 
 ```text
-python -B -m src.cli -o output/server.toml < examples/server.conf
-python -B -m src.cli -o output/experiment.toml < examples/experiment.conf
-python -B -m src.cli -o output/budget.toml < examples/budget.conf
+python -B -m src.cli -o output/server.toml
+python -B -m src.cli -o output/experiment.toml
+python -B -m src.cli -o output/budget.toml
 ```
 
 Результаты в `output/` не включаются в Git. Проверка примеров
